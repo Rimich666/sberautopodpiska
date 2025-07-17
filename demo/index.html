@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CatBoost Predictor</title>
+    <link rel="stylesheet" href="app.css">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+</head>
+<body>
+    <h1>CatBoost Predictor</h1>
+    
+    <div class="model-info">
+        <h2>Информация о модели</h2>
+        <p><strong>Тип модели:</strong> <span id="model-type">Загрузка...</span></p>
+        <p><strong>Текущая модель:</strong> <span id="current-model">Загрузка...</span></p>
+        <p><strong>Дата загрузки:</strong> <span id="loaded-at">Загрузка...</span></p>
+    </div>
+    
+    <div class="form-container">
+        <h2>Форма предсказания</h2>
+        <div id="form-fields">
+            <!-- Поля формы будут сгенерированы динамически -->
+            <p>Загрузка доступных полей...</p>
+        </div>
+        
+        <div class="buttons">
+            <button id="randomize">Заполнить случайно</button>
+            <button id="autofill">Автоподбор (≥0.5)</button>
+            <button id="submit">Получить предсказание</button>
+        </div>
+        <div class="speed-control">
+            <label for="speed">Скорость автоподбора:</label>
+            <input type="range" id="speed" min="50" max="2000" step="50" value="500">
+            <span id="speed-value">500 мс</span>
+        </div>
+    </div>
+    
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>Обработка запроса...</p>
+    </div>
+    
+    <div class="result" id="result">
+        <h2>Результат предсказания</h2>
+        <p><strong>Вероятность:</strong> <span id="probability">-</span></p>
+        <p><strong>Прогноз:</strong> <span id="prediction">-</span></p>
+        <p><strong>Время запроса:</strong> <span id="timestamp">-</span></p>
+    </div>
+
+    <script type="module">
+        import { initPredictor } from './app.js';
+        document.addEventListener('DOMContentLoaded', initPredictor);
+    </script>
+</body>
+</html>

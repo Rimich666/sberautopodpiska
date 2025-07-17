@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sber Auto User Flow</title>
+  <style>
+    .flow-container {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    .flow-step {
+      padding: 15px;
+      margin: 10px auto;
+      width: 200px;
+      text-align: center;
+      border-radius: 8px;
+      background: #4CAF50;
+      color: white;
+      position: relative;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .flow-loss {
+      background: #F44336;
+    }
+    .flow-arrow {
+      width: 0;
+      height: 0;
+      border-left: 15px solid transparent;
+      border-right: 15px solid transparent;
+      border-top: 15px solid #4CAF50;
+      margin: 0 auto;
+    }
+    .flow-loss-arrow {
+      border-top-color: #F44336;
+    }
+    .flow-loss-box {
+      padding: 10px;
+      margin: 5px auto;
+      width: 180px;
+      background: #FFEB3B;
+      color: black;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    .flow-connector {
+      height: 30px;
+      width: 2px;
+      background: #9E9E9E;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #333;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="flow-container">
+    <h1>User Flow: СберАвтоподписка</h1>
+
+    <!-- Шаг 1 -->
+    <div class="flow-step">Посетитель заходит на сайт</div>
+    <div class="flow-arrow"></div>
+
+    <!-- Шаг 2 -->
+    <div class="flow-step">Просмотр авто (view_card)</div>
+    <div class="flow-arrow"></div>
+    <div class="flow-loss-box">70% уходят</div>
+    <div class="flow-connector"></div>
+
+    <!-- Шаг 3 -->
+    <div class="flow-step">Клик "Оформить подписку" (auto_subscription_click)</div>
+    <div class="flow-arrow"></div>
+    <div class="flow-loss-box">50% уходят</div>
+    <div class="flow-connector"></div>
+
+    <!-- Шаг 4 -->
+    <div class="flow-step">Ввод телефона (phone_entered)</div>
+    <div class="flow-arrow"></div>
+
+    <!-- Шаг 5 -->
+    <div class="flow-step">Чат с менеджером (start_chat)</div>
+    <div class="flow-arrow"></div>
+
+    <!-- Шаг 6 -->
+    <div class="flow-step">Одобрение (open_offer)</div>
+    <div class="flow-arrow"></div>
+
+    <!-- Финал -->
+    <div class="flow-step" style="background: #2196F3;">Договор</div>
+  </div>
+</body>
+</html>
