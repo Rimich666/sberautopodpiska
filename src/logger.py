@@ -29,7 +29,7 @@ def setup_logging():
 
     if logger.handlers:
         return logger
-
+    logging.getLogger('matplotlib').setLevel(logging.WARNING)
     logger.setLevel(logging.DEBUG)
 
     handler = logging.StreamHandler()

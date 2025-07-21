@@ -3,12 +3,62 @@ from pathlib import Path
 from typing import Dict
 import pandas as pd
 from catboost import CatBoostClassifier
-from sklearn.metrics import roc_auc_score, classification_report
+from sklearn.metrics import roc_auc_score, classification_report, average_precision_score, precision_score
 from notebooks.prepare_sesions import clean_variants, save_dataset, targets
+
+
+class MetricNames:
+    precision_1 = 'precision_1'
+    recall_1 = 'recall_1'
+    f1_1 = 'f1_1'
+    precision_0 = 'precision_0'
+    recall_0 = 'recall_0'
+    f1_0 = 'f1_0'
+    accuracy = 'accuracy'
+    auc = 'auc'
+    pr_auc = 'pr_auc'
+
+
+class Metrics:
+
+    def __init__(self, report, auc, pr_auc):
+        self.precision_1 = report['1']['precision']
+        self.recall_1 = report['1']['recall']
+        self.f1_1 = report['1']['f1-score']
+        self.precision_0 = report['0']['precision']
+        self.recall_0 = report['0']['recall']
+        self.f1_0 = report['0']['f1-score']
+        self.accuracy = report['accuracy']
+        self.auc = auc
+        self.pr_auc = pr_auc
+
+    @property
+    def dict(self) -> dict:
+        return {
+            'AUC': self.auc,
+            'PR_AUC': self.pr_auc,
+            'report': {
+                '0': {
+                    'precision': self.precision_0,
+                    'recall': self.recall_0,
+                    'f1-score': self.f1_0,
+                },
+                '1': {
+                    'precision': self.precision_1,
+                    'recall': self.recall_1,
+                    'f1-score': self.f1_1,
+                }
+            },
+            'accuracy': self.accuracy,
+        }
+
+    def get(self, metric_name: str) -> float:
+        return self.__getattribute__(metric_name)
 
 
 def save_best(best: Dict, path):
     base_path = Path(__file__).parents[1] / 'data' / 'datasets' / path
+    Path.mkdir(base_path, parents=True, exist_ok=True)
     save_path = base_path.joinpath('best_features.json')
     with open(save_path, 'w', encoding='utf-8') as f:
         json.dump(best, f, ensure_ascii=False, indent=4)
@@ -16,12 +66,22 @@ def save_best(best: Dict, path):
 
 def load_dataset(path):
     base_path = Path(__file__).parents[1] / 'data' / 'datasets' / path
-    X_TRAIN = pd.read_parquet(Path.joinpath(base_path, 'train.parquet'))
-    X_VAL = pd.read_parquet(Path.joinpath(base_path, 'val.parquet'))
-    return X_TRAIN, X_VAL
+    x_train = pd.read_parquet(Path.joinpath(base_path, 'train.parquet'))
+    x_val = pd.read_parquet(Path.joinpath(base_path, 'val.parquet'))
+    return x_train, x_val
 
 
-def learn(candidate, train, val):
+def calculate_metrics(y_true, y_pred, y_proba) -> Metrics:
+    """Calculate multiple metrics for model evaluation."""
+    report = classification_report(y_true, y_pred, output_dict=True)
+    auc = roc_auc_score(y_true, y_proba)
+    pr_auc = average_precision_score(y_true, y_proba)
+    metrics = Metrics(report, auc, pr_auc)
+
+    return metrics
+
+
+def learn(candidate, train, val, target_metric=MetricNames.auc):
     for index, feature in enumerate(candidate):
         feature_set = feature['set']
         # print(f"Feature set {feature_set}")
@@ -38,21 +98,26 @@ def learn(candidate, train, val):
             verbose=0
         )
         model.fit(X_train, y_train)
+        y_pred = model.predict(X_val)
+        y_proba = model.predict_proba(X_val)[:, 1]
+        # y_pred = model.predict_proba(X_val)[:, 1]
+        metrics = calculate_metrics(y_val, y_pred, y_proba)
 
-        y_pred = model.predict_proba(X_val)[:, 1]
-        report = classification_report(y_val, model.predict(X_val), output_dict=True)
-        precision = report['1']['precision']
-        auc = roc_auc_score(y_val, y_pred)
-        feature['AUC'] = auc
-        feature['report'] = report
-        print('--------------------------------------------------')
-        print(f"{index:2d} ROC-AUC: {auc:.3f}   |   precision: {precision:.5f}   |   Features: {feature_set}")
-    print('--------------------------------------------------')
+        feature.update({
+            'metrics': metrics,
+            'score': metrics.get(target_metric)
+        })
+        print('-' * 80)
+        print(f"{index:2d} Features: {feature_set}")
+        print(f"f1: {metrics.get(MetricNames.f1_1):.4f} precision: {metrics.get(MetricNames.precision_1):.4f}"
+              f" recall: {metrics.get(MetricNames.recall_1):.4f} roc-auc: {metrics.get(MetricNames.auc):.4f}"
+              f" pr-auc: {metrics.get(MetricNames.pr_auc):.4f}")
+    print('-' * 80)
     return candidate
 
 
-def feature_selection():
-    print('версия 2')
+def feature_selection(target_metric: MetricNames.auc, min_improvement: float = 0.001):
+    print('версия 5.12 (с PR-AUC)')
     exceptions = ['client_id', 'session_id', 'target', 'visit_date', 'visit_time']
     for variant in clean_variants:
         for target in targets:
@@ -63,29 +128,35 @@ def feature_selection():
                 print(f"Train: {train.shape[0]} строк, Validation: {val.shape[0]} строк")
             except Exception as e:
                 print(f"❌ Ошибка: {e}")
-            columns_list = [{'set': [col], 'AUC': 0} for col in train.columns.to_list() if col not in exceptions]
-            best = {'set': [], 'AUC': 0, 'report': {}}
-            best_auc = 0
+            columns_list = [{'set': [col], 'score': 0} for col in train.columns.to_list() if col not in exceptions]
+            best = {'set': [], 'score': 0, 'metrics': None}
+            best_score = 0
             candidate = columns_list
             while candidate:
-                # print(not not candidate)
-                # print('Перед учёбой')
-                result = sorted(learn(candidate, train, val), key=lambda x: x['AUC'], reverse=True)
-                if result[0]:
+                result = sorted(learn(candidate, train, val, target_metric), key=lambda x: x['score'], reverse=True)
+                if result:
                     best = result[0]
-                    candidate = [{'set': best['set'] + feature['set'][-1:], 'AUC': 0, 'report': {}}
-                                 for feature in [x for x in result if (x['AUC'] - best_auc) > 0.001][1:]]
+                    candidate = [{'set': best['set'] + feature['set'][-1:], 'score': 0, 'metrics': None}
+                                 for feature in [x for x in result if (x['score'] - best_score) > min_improvement][1:]]
                     for i, c in enumerate(candidate):
                         print(f'{i:2d}', c)
-                    best_auc = best['AUC']
-                    print(f'Best AUC = {best_auc}')
+                    best_score = best['score']
+                    print(f'Best {target_metric} = {best_score}')
 
-            print('Best features', best['set'])
-            print(f"- ROC-AUC: {best['AUC']:.4f}")
-            print("\n📝 Classification Report:")
-            df = pd.DataFrame(best['report']).transpose()
+            print(f'\n🔍 Параметры модели для target: {target.name}, variant: {variant.name}')
+            print("=" * 60)
+            print(f'\n📈  Best features: {best["set"]}')
+            print(f'📈  Best {target_metric.upper()}: {best['score']}')
+            print(f'📈  ROC-AUC: {best['metrics'].auc}')
+            print(f'📈  PR-AUC: {best['metrics'].pr_auc}')
+            df = pd.DataFrame(best['metrics'].dict['report']).transpose()
+            print("\n📊 Отчёт по метрикам:")
+            print("=" * 60)
             print(df)
-            save_best(best, path)
+            best.update({
+                'metrics': best['metrics'].dict
+            })
+            save_best(best, path.joinpath(target_metric))
 
 
 if __name__ == '__main__':

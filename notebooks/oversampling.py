@@ -1,29 +1,21 @@
 import gc
 import numpy as np
 import pandas as pd
-from imblearn.over_sampling import SMOTENC
+from imblearn.over_sampling import SMOTENC, SMOTEN
 from tqdm import tqdm
 from src.logger import logger
 
 BATCH_SIZE = 200000
 
 
-def preprocess_data(X, categorical_features):
-    # Кодируем категориальные признаки
-    from sklearn.preprocessing import OrdinalEncoder
-
-    cat_cols = [X.columns[i] for i in categorical_features]
-
-    encoder = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
-    X[cat_cols] = encoder.fit_transform(X[cat_cols])
-
-    return X, cat_cols, encoder
-
-
-def postprocess_data(X, cat_cols, encoder):
-    # Декодируем обратно в строки
-    X[cat_cols] = encoder.inverse_transform(X[cat_cols])
-    return X
+def select_smote_method(X, categorical_features):
+    """Выбирает SMOTEN (если все фичи категориальные) или SMOTENC"""
+    if len(categorical_features) == X.shape[1]:  # Все признаки категориальные
+        logger.debug("Все признаки категориальные - используем SMOTEN")
+        return SMOTEN
+    else:
+        logger.debug("Смешанные признаки - используем SMOTENC")
+        return SMOTENC
 
 
 def batch_smote(X, y, categorical_features, percent, batch_size=50000):
@@ -45,7 +37,9 @@ def batch_smote(X, y, categorical_features, percent, batch_size=50000):
     synthetic_samples = []
     n_batches = max(1, int(np.ceil(n_to_generate / batch_size)))
 
-    logger.debug(f"Начало батчевой обработки. Будет {n_batches} батчей по ~{batch_size} сэмплов")
+    SmoteClass = select_smote_method(X, categorical_features)
+
+    # logger.debug(f"Начало батчевой обработки. Будет {n_batches} батчей по ~{batch_size} сэмплов")
 
     for batch_idx in tqdm(range(n_batches), desc="SMOTE батчи"):
         current_batch_size = min(batch_size, n_to_generate - batch_idx * batch_size)
@@ -68,11 +62,14 @@ def batch_smote(X, y, categorical_features, percent, batch_size=50000):
             index=temp_X.index  # Критически важно!
         )
 
-        smote = SMOTENC(
-            categorical_features=categorical_features,
-            sampling_strategy={1: current_batch_size + len(batch_minor)},
-            k_neighbors=min(5, len(batch_minor) - 1),
-            random_state=42 + batch_idx
+        smote = SmoteClass(
+            **({'sampling_strategy': {1: current_batch_size + len(batch_minor)},
+                'k_neighbors': min(5, len(batch_minor) - 1),
+                'random_state': 42 + batch_idx} if SmoteClass == SMOTEN else
+               {'categorical_features': categorical_features,
+                'sampling_strategy': {1: current_batch_size + len(batch_minor)},
+                'k_neighbors': min(5, len(batch_minor) - 1),
+                'random_state': 42 + batch_idx})
         )
 
         try:
@@ -84,7 +81,7 @@ def batch_smote(X, y, categorical_features, percent, batch_size=50000):
 
         gc.collect()
 
-    logger.debug(f"Собираем результат")
+    # logger.debug(f"Собираем результат")
     if synthetic_samples:
         X_resampled = pd.concat([X_major] + [X_minor] + synthetic_samples)
         y_resampled = pd.Series(
@@ -97,15 +94,17 @@ def batch_smote(X, y, categorical_features, percent, batch_size=50000):
 def standard_smote(X, y, categorical_features, percent):
     """Стандартный SMOTE с обработкой ошибок"""
     try:
-        # X_processed, cat_cols, encoder = preprocess_data(X.copy(), categorical_features)
-        # logger.debug(f"Размер данных после приведения: {X_processed.memory_usage(deep=True).sum() / 1024 ** 2:.2f} MB")
         target_counts = y.value_counts()
         desired_minority = int(target_counts[0] * percent / (100 - percent))
 
-        smote = SMOTENC(
-            categorical_features=categorical_features,
-            sampling_strategy={1: desired_minority},
-            random_state=42
+        SmoteClass = select_smote_method(X, categorical_features)
+
+        smote = SmoteClass(
+            **({'sampling_strategy': {1: desired_minority},
+                'random_state': 42} if SmoteClass == SMOTEN else
+               {'categorical_features': categorical_features,
+                'sampling_strategy': {1: desired_minority},
+                'random_state': 42})
         )
         X_res, y_res = smote.fit_resample(X, y)
         return X_res, y_res
@@ -115,7 +114,7 @@ def standard_smote(X, y, categorical_features, percent):
 
 
 def oversample(X, y, categorical_features, percent):
-    logger.debug(f"Реальный размер данных: {X.memory_usage(deep=True).sum() / 1024 ** 2:.2f} MB")
+    # logger.debug(f"Реальный размер данных: {X.memory_usage(deep=True).sum() / 1024 ** 2:.2f} MB")
     target_counts = y.value_counts()
     current_minority = target_counts.get(1, 0)
     majority = target_counts.get(0, 0)
@@ -124,13 +123,13 @@ def oversample(X, y, categorical_features, percent):
 
     if current_minority < desired_minority:
         if n_to_generate > BATCH_SIZE:
-            logger.warning(f"Надо сгенерировать {n_to_generate} строк, будем батчить")
+            # logger.warning(f"Надо сгенерировать {n_to_generate} строк, будем батчить")
             X_res, y_res = batch_smote(X, y, categorical_features, percent, BATCH_SIZE)
-            print(f"Новое распределение классов:\n", pd.Series(y_res).value_counts())
+            # print(f"Новое распределение классов:\n", pd.Series(y_res).value_counts())
             return X_res, y_res
         X_res, y_res = standard_smote(X, y, categorical_features, percent)
-        print("Новое распределение классов:\n", pd.Series(y_res).value_counts())
+        # print("Новое распределение классов:\n", pd.Series(y_res).value_counts())
         return X_res, y_res
 
-    print("\nOversampling не требуется: желаемый процент уже достигнут")
+    # print("\nOversampling не требуется: желаемый процент уже достигнут")
     return X, y
