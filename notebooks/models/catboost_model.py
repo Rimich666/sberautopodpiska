@@ -29,6 +29,9 @@ class CatBoost(Model):
             return 'Recall'
         return 'F1'
 
+    def _convert_categories(self, X, cat_features=None):
+        return X
+
     def _set_hyper_params(self):
         self._hyper_params = {
             **CatBoost.static_params,

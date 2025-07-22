@@ -53,45 +53,51 @@ class LightGBM(Model):
     def _set_hyper_params(self):
         self._hyper_params = {
             **LightGBM.static_params,
-            'n_estimators': self._params['iterations'],
-            'max_depth': self._params['depth'],
+            'n_estimators': self._params['n_estimators'],
+            'max_depth': self._params['max_depth'],
             'learning_rate': self._params['learning_rate'],
-            'reg_lambda': self._params['l2_leaf_reg']
+            'reg_lambda': self._params['reg_lambda']
         }
         self.model = LGBMClassifier(**self._hyper_params)
 
     def fit(self):
         X_train = self._convert_categories(self.x_train, self._categorical_features)
         X_test = self._convert_categories(self.x_test, self._categorical_features)
-        print("Уникальные категории в X_test:", X_test.nunique())
-        print(self.x_test.shape)
-        print(self.get_eval_metric(self._params.get('metric', MetricNames.f1_1)))
-        print(self.y_test.shape)
-        print(type(X_test))
-        print(type(self.y_test))
-        print("NaN в X_test:", X_test.isna().sum().sum())
-        print("Inf в X_test:", np.isinf(X_test.values).sum())
-        print("Params in fit():", self.model.get_params())
-        print("Params in fit_trial_model:", self._trial_params)
+        print("Типы данных перед обучением:")
+        print(X_train.dtypes)
+
+        print("\nТипы данных в тесте:")
+        print(X_test.dtypes)
+        # print("Уникальные категории в X_test:", X_test.nunique())
+        # print(self.x_test.shape)
+        # print(self.get_eval_metric(self._params.get('metric', MetricNames.f1_1)))
+        # print(self.y_test.shape)
+        # print(type(X_test))
+        # print(type(self.y_test))
+        # print("NaN в X_test:", X_test.isna().sum().sum())
+        # print("Inf в X_test:", np.isinf(X_test.values).sum())
+        # print("Params in fit():", self.model.get_params())
+        # print("Params in fit_trial_model:", self._trial_params)
         self.model.fit(
             X_train,
             self.y_train,
             eval_set=None,
             # eval_set=[(X_test, self.y_test)],
             eval_metric=self.get_eval_metric(self._params.get('metric', MetricNames.f1_1)),
-            callbacks=[
-                early_stopping(stopping_rounds=50, verbose=False)
-            ]
+            # callbacks=[
+            #     early_stopping(stopping_rounds=50, verbose=False)
+            # ]
+            callbacks=None
         )
 
     def set_trial_params(self, trial, **kwargs):
         metric = kwargs.get('metric', MetricNames.f1_1)
         self._trial_params = {
             **LightGBM.static_params,
-            'max_depth': trial.suggest_int('depth', 4, 8),
-            'learning_rate': trial.suggest_float('lr', 0.01, 0.3, log=True),
-            'n_estimators': trial.suggest_int('iterations', 300, 1000),
-            'reg_lambda': trial.suggest_int('l2', 1, 5),
+            'max_depth': trial.suggest_int('max_depth', 4, 8),  # Единый стиль
+            'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
+            'n_estimators': trial.suggest_int('n_estimators', 300, 1000),
+            'reg_lambda': trial.suggest_int('reg_lambda', 1, 5),
             'metric': self.get_eval_metric(metric)
         }
 
@@ -120,11 +126,11 @@ class LightGBM(Model):
         metric = state.get('metric', MetricNames.f1_1)
         best_params = {
             **LightGBM.static_params,
-            'n_estimators': study.best_params['iterations'],
-            'max_depth': study.best_params['depth'],
-            'learning_rate': study.best_params['lr'],
-            'reg_lambda': study.best_params['l2'],
-            'metric': self.get_eval_metric(metric)
+            'max_depth': study.best_params['max_depth'],
+            'learning_rate': study.best_params['learning_rate'],
+            'n_estimators': study.best_params['n_estimators'],
+            'reg_lambda': study.best_params['reg_lambda'],
+            'metric': self.get_eval_metric(state.get('metric', MetricNames.f1_1))
         }
         self._categorical_features = state['categorical_features']
         self._hyper_params = best_params

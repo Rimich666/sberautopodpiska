@@ -32,6 +32,10 @@ class Model(ABC):
         pass
 
     @abstractmethod
+    def _convert_categories(self, X, cat_features):
+        pass
+
+    @abstractmethod
     def _set_hyper_params(self):
         pass
 
@@ -114,9 +118,10 @@ class Model(ABC):
         return self._optimal_threshold
 
     def get_score(self, metric_name: MetricNames) -> float:
+        x_test_converted = self._convert_categories(self.x_test, self._categorical_features)
         if metric_name == MetricNames.auc:
-            return roc_auc_score(self.y_test, self.model.predict_proba(self.x_test)[:, 1])
-        y_pred = self.model.predict(self.x_test)
+            return roc_auc_score(self.y_test, self.model.predict_proba(x_test_converted)[:, 1])
+        y_pred = self.model.predict(x_test_converted)
         if metric_name == MetricNames.precision_1:
             return precision_score(self.y_test, y_pred, pos_label=1)
         if metric_name == MetricNames.recall_1:
@@ -129,7 +134,8 @@ class Model(ABC):
         pass
 
     def get_optimal_report(self, output_dict=False):
-        y_proba = self.model.predict_proba(self.x_test)[:, 1]
+        x_test_converted = self._convert_categories(self.x_test, self._categorical_features)
+        y_proba = self.model.predict_proba(x_test_converted)[:, 1]
         if not self._optimal_threshold:
             self._optimal_threshold, _ = find_optimal_threshold(self.y_test, y_proba)
         y_pred_optimal = (y_proba >= self._optimal_threshold).astype(int)
@@ -141,9 +147,10 @@ class Model(ABC):
         ), confusion_matrix(self.y_test, y_pred_optimal)
 
     def get_report(self, output_dict=False):
+        x_test_converted = self._convert_categories(self.x_test, self._categorical_features)
         return classification_report(
             self.y_test,
-            self.model.predict(self.x_test),
+            self.model.predict(x_test_converted),
             target_names=['Class 0', 'Class 1'],
             output_dict=output_dict
         )
