@@ -134,6 +134,13 @@ def hyper_select(
         trial_count=TRIALS,
         features_metric: MetricNames = None,
         parts=MINOR_PARTS):
+    """
+        Принимает модель,
+        Метрику для оптимизации,
+        количество триалов,
+        метрику отбора фичей, для подгрузки этих самых фмчей
+        долю, которую хочет занять минорный класс в датасете
+    """
     logger.debug(f'Старт подбора. Версия 8.01. Метрика оптимизации: {metric}')
     for variant in clean_variants:
         for target in targets:

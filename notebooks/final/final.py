@@ -98,7 +98,7 @@ def finalize_model(final_model):
     print(f"- Метрики: {metrics_path}")
 
 
-def light_auto_ml(model=models.catboost, feature_metric=MetricNames.f1_1, part=0, optimisation_metric=MetricNames.f1_1):
+def final_learn(model=models.catboost, feature_metric=MetricNames.f1_1, part=0, optimisation_metric=MetricNames.f1_1):
     train, test, model.params = load_data(model.name, feature_metric, part, optimisation_metric)
     model.train = train
     model.test = test
