@@ -1,7 +1,10 @@
 .idea
 data
+.idea/
+data/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 *catboost_info
+catboost_info/
