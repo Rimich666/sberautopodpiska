@@ -2,9 +2,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from src.prediction_type import ModelType
-from src.routes import router as model_router
 from src.model import ModelCache
+from src.routes import router as model_router
+
 
 
 @asynccontextmanager

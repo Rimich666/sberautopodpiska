@@ -1,4 +1,7 @@
+import numpy as np
 from catboost import CatBoostClassifier, Pool
+from sklearn.model_selection import cross_val_predict
+import time
 from notebooks.feature_selection import MetricNames
 from notebooks.models.model import Model
 
@@ -29,7 +32,7 @@ class CatBoost(Model):
             return 'Recall'
         return 'F1'
 
-    def _convert_categories(self, X, cat_features=None):
+    def convert_categories(self, X):
         return X
 
     def _set_hyper_params(self):
@@ -40,14 +43,15 @@ class CatBoost(Model):
             'learning_rate': self._params['learning_rate'],
             'l2_leaf_reg': self._params['l2_leaf_reg']
         }
+        cat_features_indices = [self._features.index(col) for col in self._categorical_features]
+        self._hyper_params.update({'cat_features': cat_features_indices})
         self.model = CatBoostClassifier(**self._hyper_params)
 
     def fit(self):
-        if self.name == 'catboost':
-            self.model.fit(
-                Pool(self.x_train, self.y_train, cat_features=self._categorical_features),
-                plot=True
-            )
+        self.model.fit(
+            Pool(self.x_train, self.y_train, cat_features=self._categorical_features),
+            plot=True
+        )
 
     def set_trial_params(self, trial, **kwargs):
         metric = kwargs.get('metric', MetricNames.f1_1)
@@ -90,3 +94,47 @@ class CatBoost(Model):
             **best_params,
             **state
         }
+
+    def save_model(self, path: str) -> None:
+        self.model.save_model(path)
+
+    def get_meta(self):
+        from sklearn.model_selection import KFold
+        kf = KFold(n_splits=5)
+        meta_preds = np.zeros(len(self.x_train))
+        fold_times = []
+        print("\n🔹 Начало генерации мета-признаков для CatBoost")
+        print(f"🔸 Размер данных: {len(self.x_train)} строк, {len(self.x_train.columns)} признаков")
+        print(f"🔸 Категориальные признаки: {self._categorical_features}")
+        print(f"🔸 Параметры модели: {self.model.get_params()}")
+
+        for fold_num, (train_idx, val_idx) in enumerate(kf.split(self.x_train), 1):
+            fold_start_time = time.time()
+            print(f"\n🔹 Обработка fold #{fold_num}")
+            print(f"🔸 Размер train: {len(train_idx)}, val: {len(val_idx)}")
+            train_pool = Pool(
+                self.x_train.iloc[train_idx],
+                self.y_train.iloc[train_idx],
+                cat_features=self._categorical_features
+            )
+            val_pool = Pool(
+                self.x_train.iloc[val_idx],
+                cat_features=self._categorical_features
+            )
+
+            model = CatBoostClassifier(**self.model.get_params())
+            model.fit(train_pool)
+            meta_preds[val_idx] = model.predict_proba(val_pool)[:, 1]
+            fold_time = time.time() - fold_start_time
+            fold_times.append(fold_time)
+            print(f"⏱ Время обработки fold #{fold_num}: {fold_time:.2f} сек")
+
+        total_time = sum(fold_times)
+        avg_fold_time = total_time / len(fold_times)
+        print(f"\n✅ Все folds обработаны")
+        print(f"🔸 Общее время: {total_time:.2f} сек")
+        print(f"🔸 Среднее время на fold: {avg_fold_time:.2f} сек")
+        print(
+            f"🔸 Статистика итоговых мета-признаков: min={meta_preds.min():.4f}, max={meta_preds.max():.4f}, mean={meta_preds.mean():.4f}")
+
+        return meta_preds

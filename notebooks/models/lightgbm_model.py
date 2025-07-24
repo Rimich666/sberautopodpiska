@@ -1,6 +1,7 @@
-import numpy as np
-import pandas as pd
+import joblib
 from lightgbm import LGBMClassifier, early_stopping
+from sklearn.model_selection import cross_val_predict
+
 from notebooks.feature_selection import MetricNames
 from notebooks.models.model import Model
 
@@ -32,11 +33,11 @@ class LightGBM(Model):
             return 'recall'
         return 'binary_logloss'  # по умолчанию
 
-    def _convert_categories(self, X, cat_features):
+    def convert_categories(self, X):
         """Полностью преобразуем категориальные признаки в числовой формат"""
         X = X.copy()
         initial_size = len(X)
-        for col in cat_features:
+        for col in self._categorical_features:
             if col in X.columns:
                 if X[col].dtype == 'object' or X[col].nunique() < 100:
                     if col not in self._category_mapping:
@@ -61,32 +62,13 @@ class LightGBM(Model):
         self.model = LGBMClassifier(**self._hyper_params)
 
     def fit(self):
-        X_train = self._convert_categories(self.x_train, self._categorical_features)
-        X_test = self._convert_categories(self.x_test, self._categorical_features)
-        print("Типы данных перед обучением:")
-        print(X_train.dtypes)
-
-        print("\nТипы данных в тесте:")
-        print(X_test.dtypes)
-        # print("Уникальные категории в X_test:", X_test.nunique())
-        # print(self.x_test.shape)
-        # print(self.get_eval_metric(self._params.get('metric', MetricNames.f1_1)))
-        # print(self.y_test.shape)
-        # print(type(X_test))
-        # print(type(self.y_test))
-        # print("NaN в X_test:", X_test.isna().sum().sum())
-        # print("Inf в X_test:", np.isinf(X_test.values).sum())
-        # print("Params in fit():", self.model.get_params())
-        # print("Params in fit_trial_model:", self._trial_params)
+        X_train = self.convert_categories(self.x_train)
+        X_test = self.convert_categories(self.x_test)
         self.model.fit(
             X_train,
             self.y_train,
             eval_set=None,
-            # eval_set=[(X_test, self.y_test)],
             eval_metric=self.get_eval_metric(self._params.get('metric', MetricNames.f1_1)),
-            # callbacks=[
-            #     early_stopping(stopping_rounds=50, verbose=False)
-            # ]
             callbacks=None
         )
 
@@ -103,8 +85,8 @@ class LightGBM(Model):
 
     def fit_trial_model(self, **kwargs):
         model = LGBMClassifier(**self._trial_params)
-        X_train = self._convert_categories(kwargs['X_train'], self._categorical_features)
-        X_val = self._convert_categories(kwargs['X_val'], self._categorical_features)
+        X_train = self.convert_categories(kwargs['X_train'])
+        X_val = self.convert_categories(kwargs['X_val'])
         model.fit(
             X_train,
             kwargs['y_train'],
@@ -118,8 +100,8 @@ class LightGBM(Model):
 
     def get_trial_data(self, X_train, y_train, X_val, y_val, cat_features):
         self._categorical_features = [X_train.columns[i] for i in cat_features if i < len(X_train.columns)]
-        X_train_processed = self._convert_categories(X_train, self._categorical_features)
-        X_val_processed = self._convert_categories(X_val, self._categorical_features)
+        X_train_processed = self.convert_categories(X_train)
+        X_val_processed = self.convert_categories(X_val)
         return X_train_processed, X_val_processed, y_train, y_val
 
     def set_best_params(self, study, state):
@@ -136,3 +118,11 @@ class LightGBM(Model):
         self._hyper_params = best_params
         self.model = LGBMClassifier(**self._hyper_params)
         return {**best_params, **state}
+
+    def save_model(self, path: str) -> None:
+        joblib.dump(self.model, path)
+
+    def get_meta(self):
+        X_train_processed = self.convert_categories(self.x_train)
+        print("Категориальные признаки:", self._categorical_features)
+        return cross_val_predict(self.model, X_train_processed, self.y_train, cv=5, method='predict_proba')[:, 1]

@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from sklearn.metrics import roc_auc_score, precision_score, recall_score, f1_score, classification_report, \
     confusion_matrix
+from sklearn.model_selection import cross_val_predict
+
 from notebooks.feature_selection import MetricNames
 from notebooks.models.helpers import find_optimal_threshold
 
@@ -32,7 +34,7 @@ class Model(ABC):
         pass
 
     @abstractmethod
-    def _convert_categories(self, X, cat_features):
+    def convert_categories(self, X):
         pass
 
     @abstractmethod
@@ -118,7 +120,7 @@ class Model(ABC):
         return self._optimal_threshold
 
     def get_score(self, metric_name: MetricNames) -> float:
-        x_test_converted = self._convert_categories(self.x_test, self._categorical_features)
+        x_test_converted = self.convert_categories(self.x_test)
         if metric_name == MetricNames.auc:
             return roc_auc_score(self.y_test, self.model.predict_proba(x_test_converted)[:, 1])
         y_pred = self.model.predict(x_test_converted)
@@ -134,7 +136,7 @@ class Model(ABC):
         pass
 
     def get_optimal_report(self, output_dict=False):
-        x_test_converted = self._convert_categories(self.x_test, self._categorical_features)
+        x_test_converted = self.convert_categories(self.x_test)
         y_proba = self.model.predict_proba(x_test_converted)[:, 1]
         if not self._optimal_threshold:
             self._optimal_threshold, _ = find_optimal_threshold(self.y_test, y_proba)
@@ -147,7 +149,7 @@ class Model(ABC):
         ), confusion_matrix(self.y_test, y_pred_optimal)
 
     def get_report(self, output_dict=False):
-        x_test_converted = self._convert_categories(self.x_test, self._categorical_features)
+        x_test_converted = self.convert_categories(self.x_test)
         return classification_report(
             self.y_test,
             self.model.predict(x_test_converted),
@@ -155,5 +157,12 @@ class Model(ABC):
             output_dict=output_dict
         )
 
+    @abstractmethod
     def save_model(self, path: str) -> None:
-        self.model.save_model(path)
+        pass
+
+    def get_meta(self):
+        X_train_processed = self.convert_categories(self.x_train)
+        return cross_val_predict(
+            self.model, X_train_processed, self.y_train, cv=5, method='predict_proba', n_jobs=-1
+        )[:, 1]

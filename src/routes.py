@@ -1,14 +1,10 @@
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from typing import Dict, Any
 import pandas as pd
 import logging
 
-from src.model import (
-    get_model,
-    get_features,
-    get_cat_features
-)
+from src.model import get_features, get_cat_features, get_model
 from src.prediction_type import MODEL, PredictionRequest
 
 # Настройка логирования

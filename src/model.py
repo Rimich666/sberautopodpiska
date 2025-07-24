@@ -2,6 +2,7 @@ import glob
 import json
 import os
 import logging
+from enum import Enum
 from pathlib import Path
 from typing import Tuple, List, Optional
 
@@ -13,6 +14,13 @@ from src.prediction_type import MODEL
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class ModelType(str, Enum):
+    CATBOOST = 'catboost'
+    LIGHTGBM = 'lightgbm'
+    LIGHTAUTOML = 'lightautoml'
+    STACKER = 'stacker'
 
 
 class ModelCache:
@@ -33,6 +41,7 @@ class ModelCache:
         models_dir: str = os.path.join('data/models', MODEL)
         try:
             model_path, features, cat_features = _load_latest_params(models_dir)
+            logger.info(f'models_dir\n')
             cls.model = CatBoostClassifier()
             cls.model.load_model(model_path)
             cls.features = features

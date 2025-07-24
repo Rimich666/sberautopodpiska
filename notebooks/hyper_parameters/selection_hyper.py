@@ -175,22 +175,12 @@ def hyper_select(
                 }
                 best_params = model.set_best_params(study, state)
 
-                print("\nДанные ДО oversample:")
-                print("x_train shape:", model.x_train.shape, "| y_train shape:", model.y_train.shape)
-                print("Индексы x_train:", model.x_train.index[:5], "| Индексы y_train:", model.y_train.index[:5])
-
                 model.x_train, model.y_train = oversample(model.x_train, model.y_train, cat_features, part)
-
-                print("\nДанные ПОСЛЕ oversample:")
-                print("x_train shape:", model.x_train.shape, "| y_train shape:", model.y_train.shape)
-                print("Индексы x_train:", model.x_train.index[:5], "| Индексы y_train:", model.y_train.index[:5])
 
                 model.fit()
 
                 print("Model:", model.model)
                 print("Все параметры из study.best_params:", list(study.best_params.keys()))
-
-                save_result(results_df, best_params, save_path)
 
                 feature_importances = pd.DataFrame({
                     'feature': features,
@@ -203,6 +193,9 @@ def hyper_select(
                 for key, value in study.best_params.items():
                     print(f'- {key}: {value}')
 
+                report, cm = model.get_optimal_report()
+                best_params['optimal_threshold'] = model.optimal_threshold
+                save_result(results_df, best_params, save_path)
                 print(f'Оптимальный порог: {model.optimal_threshold}')
                 print("\n📊 Значимость фичей из лучшей модели:")
                 print(feature_importances.to_string(index=False))
@@ -211,7 +204,6 @@ def hyper_select(
                 print("📊 Classification Report:")
                 print(model.get_report())
                 print(f"\n📝 Classification Report с оптимизированным порогом: {model.optimal_threshold}:")
-                report, cm = model.get_optimal_report()
                 print(report)
                 print("\n📈 ROC-AUC Score:", model.get_score(MetricNames.auc))
 
