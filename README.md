@@ -351,6 +351,31 @@ Zero Division
 Ну вот так не замысловато.
 Была мысль переделать. Но я решил от этой мысли отказаться.
 
+## Запуск приложения
+
+```bash
+python main.py
+```
+
+```bash
+(base) PS F:\Projects\tgu\hahaton25_2\sberautopodpiska> python main.py
+2025-07-25 08:22:29 | DEBUG | Using proactor: IocpProactor
+INFO:     Started server process [420]
+INFO:     Waiting for application startup.
+INFO:     Waiting for application startup.
+2025-07-25 08:22:29 | INFO | F:\Projects\tgu\hahaton25_2\sberautopodpiska\src
+2025-07-25 08:22:29 | INFO | F:\Projects\tgu\hahaton25_2\sberautopodpiska\src\base
+
+```
+**На порту 8088 появится бэк.**
+
+**Вот этот файлик запустить в браузере ```demo/index.html```**
+
+**Запустится фронт**
+
+Запускаемую модель я перенёс в ```src```, забыл что все модели не гитуются, извините.
+
+
 # Оду отрицательному результату просто необходимо закончить так:
 
 > Результат: ноль.  
